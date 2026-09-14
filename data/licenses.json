@@ -1,0 +1,19 @@
+[
+  {
+    "id": "lic_1788959597131_edff6a46",
+    "licenseKey": "NOMA-PRO-A70B-9770-4909",
+    "clientName": "Toko Kopi Sejahtera",
+    "email": "owner@kopisejahtera.com",
+    "subdomain": "kopi-sejahtera",
+    "fullDomain": "kopi-sejahtera.nomapos.com",
+    "plan": "PRO",
+    "tunnelId": "cft_da6dbcb7-8c34-4bab-b6cb-0c6a92080052",
+    "tunnelToken": "eyJhIjoieW91cl9jbG91ZGZsYXJlX2FjY291bnRfaWRfaGVyZSIsInQiOiJjZnRfZGE2ZGJjYjctOGMzNC00YmFiLWI2Y2ItMGM2YTkyMDgwMDUyIiwicyI6InRUUHcvY2g0TnBUK1dHdlhCYkt3dEtWSStQcjBTYUlrajJVc1BlcEJDYmc9In0=",
+    "dnsRecordId": "dns_mock_29457a83",
+    "status": "REVOKED",
+    "createdAt": "2026-09-09T13:13:17.131Z",
+    "expiresAt": "2027-09-09T13:13:17.130Z",
+    "activatedAt": "2026-09-09T13:13:17.139Z",
+    "activatedMachineId": "pos_cashier_desktop_01"
+  }
+]

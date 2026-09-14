@@ -1,0 +1,49 @@
+// Prisma schema for POS-License
+// Connected to Supabase PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model License {
+  LicenseId   String   @id @default(uuid()) @map("LICENSE_ID")
+  LicenseCode String   @unique @map("LICENSE_CODE")
+  PlanType    String   @default("FREE") @map("PLAN_TYPE")
+  LicenseJson String   @map("LICENSE_JSON")
+  IsActive    Boolean  @default(true) @map("IS_ACTIVE")
+  CreatedAt   DateTime @default(now()) @map("CREATED_AT")
+  UpdatedAt   DateTime @updatedAt @map("UPDATED_AT")
+  Users       User[]
+
+  @@map("LICENSE")
+}
+
+model User {
+  UserId    String   @id @default(uuid()) @map("USER_ID")
+  Username  String   @unique @map("USERNAME")
+  Password  String   @map("PASSWORD")
+  MasterKey String   @map("MASTER_KEY")
+  LicenseId String   @map("LICENSE_ID")
+  Role      String   @default("ADMIN") @map("ROLE")
+  CreatedAt DateTime @default(now()) @map("CREATED_AT")
+  UpdatedAt DateTime @updatedAt @map("UPDATED_AT")
+  License   License  @relation(fields: [LicenseId], references: [LicenseId], onDelete: Cascade)
+
+  @@map("USER")
+}
+
+model LicenseMaster {
+  LicenseMasterId String   @id @default(uuid()) @map("LICENSE_MASTER_ID")
+  LicensePlanCode String   @unique @map("LICENSE_PLAN_CODE")
+  LicenseJson     String   @map("LICENSE_JSON")
+  CreatedAt       DateTime @default(now()) @map("CREATED_AT")
+  UpdatedAt       DateTime @updatedAt @map("UPDATED_AT")
+
+  @@map("LICENSE_MASTER")
+}
