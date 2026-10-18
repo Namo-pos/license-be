@@ -40,25 +40,25 @@ async function runTests() {
     throw new Error(`Expected valid MASTER_KEY, got ${freeResult.user.masterKey}`);
   }
 
-  // Test 2: Register PRO client
-  console.log('\n--- Test 2: Register PRO plan ---');
+  // Test 2: Register PRO client (auto-generated subdomain from username + clientName)
+  console.log('\n--- Test 2: Register PRO plan with auto-generated subdomain ---');
   const proResult = await LicenseService.registerClient({
     username: proUsername,
     password: 'proPassword456',
     plan: 'PRO',
     clientName: 'Toko Maju Pro',
     email: 'pro@tokomaju.com',
-    subdomain: `tokomaju${ts % 10000}`,
   });
   console.log('✅ PRO Registration Success:', {
     licenseCode: proResult.licenseCode,
     plan: proResult.plan,
+    subdomain: proResult.cloudflare?.subdomain,
+    fullDomain: proResult.cloudflare?.fullDomain,
     maxUsers: proResult.limits.maxUsers,
     cloudflareIncluded: proResult.limits.cloudflareIncluded,
     startDate: proResult.startDate,
     expiredDate: proResult.expiredDate,
     masterKey: proResult.user.masterKey,
-    cloudflare: proResult.cloudflare,
   });
 
   if (proResult.limits.maxUsers !== 100) {
@@ -69,6 +69,19 @@ async function runTests() {
   }
   if (!proResult.expiredDate) {
     throw new Error(`Expected expiredDate to be set for PRO`);
+  }
+  if (!proResult.cloudflare?.subdomain) {
+    throw new Error(`Expected auto-generated subdomain for PRO`);
+  }
+
+  // Test 2B: Collision handling - same username + clientname base combination
+  console.log('\n--- Test 2B: Collision handling (duplicate subdomain base with random number) ---');
+  const proUsername2 = `admin2_pro_${ts}`;
+  // We explicitly test generateUniqueSubdomain with the same username and clientName as proResult
+  const duplicateSubdomain = await LicenseService.generateUniqueSubdomain(proUsername, 'Toko Maju Pro');
+  console.log(`✅ Subdomain collision resolved: original was "${proResult.cloudflare.subdomain}", collision resolved to "${duplicateSubdomain}"`);
+  if (duplicateSubdomain === proResult.cloudflare.subdomain) {
+    throw new Error(`Expected random number to be appended on collision, but got identical subdomain: ${duplicateSubdomain}`);
   }
 
   // Test 3: Attempt to register ENTERPRISE (should return warning: enterprise is not available right now)

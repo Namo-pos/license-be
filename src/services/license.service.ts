@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { SupabaseDatabase, LicenseJsonData } from '../storage/supabase.database.js';
+import { D1Database, D1Database as SupabaseDatabase, LicenseJsonData } from '../storage/d1.database.js';
 import { CloudflareService } from './cloudflare.service.js';
 import { hashPassword, verifyPassword } from '../utils/password.js';
 import { LicenseSigner, LicenseLeasePayload } from '../utils/license-signer.js';
@@ -64,6 +64,59 @@ export class LicenseService {
   }
 
   /**
+   * Generate unique subdomain for PRO plan formed by combining username + clientname.
+   * If a subdomain with the same combination already exists, appends a random number.
+   */
+  static async generateUniqueSubdomain(
+    username: string,
+    clientName?: string,
+    customSubdomain?: string
+  ): Promise<string> {
+    const cleanUser = username.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanClient = (clientName || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    // Form base subdomain from username + clientname (or customSubdomain if provided)
+    let baseSubdomain = customSubdomain?.trim()
+      ? customSubdomain.trim().toLowerCase().replace(/[^a-z0-9-]/g, '')
+      : `${cleanUser}${cleanClient}`;
+
+    if (!baseSubdomain) {
+      baseSubdomain = cleanUser || 'nomapos';
+    }
+
+    // Limit base length so with random suffix it stays well within the 63-char DNS limit
+    if (baseSubdomain.length > 50) {
+      baseSubdomain = baseSubdomain.slice(0, 50);
+    }
+
+    let finalSubdomain = baseSubdomain;
+    const isTaken = await SupabaseDatabase.isSubdomainTaken(finalSubdomain);
+
+    // If there is already the same subdomain (same username + clientname), append a random number
+    if (isTaken) {
+      let attempts = 0;
+      let isUnique = false;
+      while (attempts < 10) {
+        const randomNum = crypto.randomInt(1000, 10000); // 4-digit random number
+        const candidate = `${baseSubdomain}${randomNum}`;
+        const stillTaken = await SupabaseDatabase.isSubdomainTaken(candidate);
+        if (!stillTaken) {
+          finalSubdomain = candidate;
+          isUnique = true;
+          break;
+        }
+        attempts++;
+      }
+
+      if (!isUnique) {
+        finalSubdomain = `${baseSubdomain}${Date.now().toString().slice(-6)}`;
+      }
+    }
+
+    return finalSubdomain;
+  }
+
+  /**
    * Register a new client admin user & issue a tier-based license in Supabase.
    */
   static async registerClient(data: RegisterClientInput): Promise<RegisterClientResult> {
@@ -110,10 +163,9 @@ export class LicenseService {
       oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
       expiredDate = oneYearLater.toISOString();
 
-      const subdomain = (data.subdomain || username).trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
-      if (!subdomain) {
-        throw new Error('Subdomain is required for PRO plan to provision Cloudflare Remote Tunnel');
-      }
+      // Subdomain dibentuk dari gabungan username + clientname
+      // Jika kombinasi/subdomain sudah ada yang sama, ditambahkan random number di belakangnya
+      const subdomain = await this.generateUniqueSubdomain(username, clientName, data.subdomain);
 
       // Provision Cloudflare Tunnel
       cfResult = await CloudflareService.provisionClientTunnel(subdomain);

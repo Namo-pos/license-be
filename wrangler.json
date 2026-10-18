@@ -1,0 +1,18 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "pos-license",
+	"compatibility_date": "2024-09-25",
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "namo-license-db",
+			"database_id": "b9ddc5cd-83f3-4d24-ae1a-5adb2b62e7b8"
+		},
+		{
+			"binding": "namo_license_db",
+			"database_name": "namo-license-db",
+			"database_id": "b9ddc5cd-83f3-4d24-ae1a-5adb2b62e7b8",
+			"remote": true
+		}
+	]
+}

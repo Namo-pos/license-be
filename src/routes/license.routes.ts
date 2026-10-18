@@ -16,3 +16,4 @@ licenseRouter.get('/benefits/:plan', LicenseController.getBenefitByPlan);
 licenseRouter.get('/status/:key', LicenseController.getStatus);
 licenseRouter.get('/list', LicenseController.listAll);
 licenseRouter.delete('/:key', LicenseController.delete);
+licenseRouter.post('/provision-dns', LicenseController.provisionDns);

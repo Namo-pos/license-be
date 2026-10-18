@@ -49,7 +49,7 @@ Content-Type: application/json
 | `plan` | `string` | Tidak | `"FREE"` | Pilihan: `"FREE"`, `"PRO"`, `"ENTERPRISE"`. |
 | `clientName`| `string` | Tidak | `""` | Nama toko / bisnis / client. |
 | `email` | `string` | Tidak | `""` | Alamat email pemilik bisnis. |
-| `subdomain` | `string` | Khusus PRO | - | Nama subdomain untuk Cloudflare Tunnel (wajib jika plan `PRO`). |
+| `subdomain` | `string` | Opsional | Auto-generated | Nama subdomain Cloudflare Tunnel. Otomatis dibentuk dari gabungan `username` + `clientName`. Jika sudah ada yang sama, ditambahkan *random number* di belakangnya. |
 
 ---
 
@@ -263,26 +263,41 @@ pm.test("PRO Subscription & Cloudflare provisioned", function () {
 
 ---
 
-### Skenario Uji 6: Validasi Error - Subdomain Tidak Diisi untuk Plan PRO
+### Skenario Uji 6: Subdomain Otomatis dari Username + ClientName (dengan Random Number jika Duplikat)
+* Karakteristik: Parameter `subdomain` tidak wajib dikirim. Sistem otomatis membentuk subdomain dari kombinasi `username + clientName`. Jika terjadi duplikasi nama subdomain yang sama, sistem menambahkan 4 digit *random number* di belakangnya.
+
 #### Request
 * **Method:** `POST`
 * **URL:** `{{baseUrl}}/api/license/register`
 * **Body (raw JSON):**
 ```json
 {
-  "username": "admin_tanpa_subdomain",
+  "username": "admin_jaya_01",
   "password": "password123",
   "plan": "PRO",
-  "subdomain": ""
+  "clientName": "Toko Berkah"
 }
 ```
-#### Response (400 Bad Request):
+
+#### Response Sukses (201 Created):
 ```json
 {
-  "success": false,
-  "error": "Subdomain is required for PRO plan to provision Cloudflare Remote Tunnel"
+  "success": true,
+  "message": "License registered and admin user created successfully",
+  "data": {
+    "licenseCode": "NOMA-PRO-XXXX-YYYY-ZZZZ",
+    "plan": "PRO",
+    "cloudflare": {
+      "enabled": true,
+      "subdomain": "adminjaya01tokoberkah",
+      "fullDomain": "adminjaya01tokoberkah.nomapos.com",
+      "tunnelId": "...",
+      "tunnelToken": "..."
+    }
+  }
 }
 ```
+*(Catatan: Jika `adminjaya01tokoberkah` telah terdaftar oleh lisensi lain, maka subdomain otomatis menjadi e.g. `adminjaya01tokoberkah4829`)*
 
 ---
 

@@ -8,9 +8,14 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "test:license": "tsx test-license.ts"
+    "test:license": "tsx test-license.ts",
+    "db:migrate:local": "wrangler d1 migrations apply namo-license-db --local",
+    "db:migrate:remote": "wrangler d1 migrations apply namo-license-db --remote",
+    "db:migrations:local": "wrangler d1 migrations list namo-license-db --local",
+    "db:migrations:remote": "wrangler d1 migrations list namo-license-db --remote"
   },
   "dependencies": {
+    "@prisma/adapter-d1": "^6.19.3",
     "@prisma/client": "^6.4.1",
     "@supabase/supabase-js": "^2.116.0",
     "cors": "^2.8.5",
@@ -23,6 +28,7 @@
     "@types/node": "^22.13.1",
     "prisma": "^6.4.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "wrangler": "^4.140.0"
   }
 }

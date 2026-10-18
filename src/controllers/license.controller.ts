@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { LicenseService } from '../services/license.service.js';
-import { SupabaseDatabase, LicenseJsonData } from '../storage/supabase.database.js';
+import { CloudflareService } from '../services/cloudflare.service.js';
+import { D1Database, D1Database as SupabaseDatabase, LicenseJsonData } from '../storage/d1.database.js';
 
 export const LicenseController = {
   /**
@@ -347,6 +348,73 @@ export const LicenseController = {
       res.status(500).json({
         success: false,
         error: err.message || 'Failed to get public key',
+      });
+    }
+  },
+
+  /**
+   * Retroactively provision DNS for all existing domainless tunnels.
+   * Call this after adding CLOUDFLARE_ZONE_ID and BASE_DOMAIN to env.
+   * POST /api/license/provision-dns
+   */
+  async provisionDns(_req: Request, res: Response): Promise<void> {
+    try {
+      if (!CloudflareService.hasDomainConfig) {
+        res.status(400).json({
+          success: false,
+          error: 'CLOUDFLARE_ZONE_ID and BASE_DOMAIN must be configured before provisioning DNS.',
+        });
+        return;
+      }
+
+      const allLicenses = await SupabaseDatabase.getAllLicenses();
+      const results: any[] = [];
+
+      for (const lic of allLicenses) {
+        const json: LicenseJsonData =
+          typeof lic.LICENSE_JSON === 'string' ? JSON.parse(lic.LICENSE_JSON) : lic.LICENSE_JSON;
+
+        // Skip licenses without tunnel or already with DNS
+        if (!json.tunnelId || json.dnsRecordId) continue;
+        if (!json.subdomain) continue;
+
+        try {
+          const dns = await CloudflareService.provisionDnsForExistingTunnel(
+            json.tunnelId,
+            json.subdomain
+          );
+
+          // Update LICENSE_JSON with new fullDomain and dnsRecordId
+          await SupabaseDatabase.updateLicense(lic.LICENSE_CODE, {
+            fullDomain: dns.fullDomain,
+            dnsRecordId: dns.dnsRecordId,
+          });
+
+          results.push({
+            licenseCode: lic.LICENSE_CODE,
+            subdomain: json.subdomain,
+            fullDomain: dns.fullDomain,
+            status: 'provisioned',
+          });
+        } catch (err: any) {
+          results.push({
+            licenseCode: lic.LICENSE_CODE,
+            subdomain: json.subdomain,
+            status: 'failed',
+            error: err.message,
+          });
+        }
+      }
+
+      res.json({
+        success: true,
+        message: `DNS provisioning complete. ${results.filter(r => r.status === 'provisioned').length} of ${results.length} tunnels updated.`,
+        data: results,
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        error: err.message || 'DNS provisioning failed',
       });
     }
   },
