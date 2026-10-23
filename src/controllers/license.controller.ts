@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { LicenseService } from '../services/license.service.js';
 import { CloudflareService } from '../services/cloudflare.service.js';
-import { D1Database, D1Database as SupabaseDatabase, LicenseJsonData } from '../storage/d1.database.js';
+import { D1Database, LicenseJsonData } from '../storage/d1.database.js';
 
 export const LicenseController = {
   /**
@@ -119,7 +119,7 @@ export const LicenseController = {
   async getStatus(req: Request, res: Response): Promise<void> {
     try {
       const key = (Array.isArray(req.params.key) ? req.params.key[0] : req.params.key) as string;
-      const record = await SupabaseDatabase.findLicenseByCode(key);
+      const record = await D1Database.findLicenseByCode(key);
       if (!record) {
         res.status(404).json({ success: false, error: 'License key not found' });
         return;
@@ -155,7 +155,7 @@ export const LicenseController = {
    */
   async listAll(_req: Request, res: Response): Promise<void> {
     try {
-      const rows = await SupabaseDatabase.getAllLicenses();
+      const rows = await D1Database.getAllLicenses();
       const records = rows.map((r) => {
         const json: LicenseJsonData =
           typeof r.LICENSE_JSON === 'string' ? JSON.parse(r.LICENSE_JSON) : r.LICENSE_JSON;
@@ -367,7 +367,7 @@ export const LicenseController = {
         return;
       }
 
-      const allLicenses = await SupabaseDatabase.getAllLicenses();
+      const allLicenses = await D1Database.getAllLicenses();
       const results: any[] = [];
 
       for (const lic of allLicenses) {
@@ -385,7 +385,7 @@ export const LicenseController = {
           );
 
           // Update LICENSE_JSON with new fullDomain and dnsRecordId
-          await SupabaseDatabase.updateLicense(lic.LICENSE_CODE, {
+          await D1Database.updateLicense(lic.LICENSE_CODE, {
             fullDomain: dns.fullDomain,
             dnsRecordId: dns.dnsRecordId,
           });

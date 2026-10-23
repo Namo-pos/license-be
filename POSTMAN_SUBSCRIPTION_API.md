@@ -748,7 +748,7 @@ Anda dapat langsung meng-copy seluruh kode JSON di bawah ini, lalu buka Postman:
               "host": ["{{baseUrl}}"],
               "path": ["api", "license", "list"]
             },
-            "description": "Menampilkan seluruh lisensi yang terdaftar di Supabase."
+            "description": "Menampilkan seluruh lisensi yang terdaftar di Cloudflare D1."
           }
         },
         {

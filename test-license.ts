@@ -1,7 +1,7 @@
 import { LicenseService } from './src/services/license.service.js';
 
 async function runTests() {
-  console.log('🧪 Starting POS-License multi-tier & Supabase tests...\n');
+  console.log('🧪 Starting POS-License multi-tier & Cloudflare D1 tests...\n');
 
   const ts = Date.now();
   const freeUsername = `admin_free_${ts}`;

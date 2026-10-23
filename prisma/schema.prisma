@@ -1,5 +1,5 @@
 // Prisma schema for POS-License
-// Connected to Supabase PostgreSQL
+// Connected to Cloudflare D1 (SQLite)
 
 generator client {
   provider = "prisma-client-js"

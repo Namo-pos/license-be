@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { D1Database, D1Database as SupabaseDatabase, LicenseJsonData } from '../storage/d1.database.js';
+import { D1Database, LicenseJsonData } from '../storage/d1.database.js';
 import { CloudflareService } from './cloudflare.service.js';
 import { hashPassword, verifyPassword } from '../utils/password.js';
 import { LicenseSigner, LicenseLeasePayload } from '../utils/license-signer.js';
@@ -90,7 +90,7 @@ export class LicenseService {
     }
 
     let finalSubdomain = baseSubdomain;
-    const isTaken = await SupabaseDatabase.isSubdomainTaken(finalSubdomain);
+    const isTaken = await D1Database.isSubdomainTaken(finalSubdomain);
 
     // If there is already the same subdomain (same username + clientname), append a random number
     if (isTaken) {
@@ -99,7 +99,7 @@ export class LicenseService {
       while (attempts < 10) {
         const randomNum = crypto.randomInt(1000, 10000); // 4-digit random number
         const candidate = `${baseSubdomain}${randomNum}`;
-        const stillTaken = await SupabaseDatabase.isSubdomainTaken(candidate);
+        const stillTaken = await D1Database.isSubdomainTaken(candidate);
         if (!stillTaken) {
           finalSubdomain = candidate;
           isUnique = true;
@@ -117,7 +117,7 @@ export class LicenseService {
   }
 
   /**
-   * Register a new client admin user & issue a tier-based license in Supabase.
+   * Register a new client admin user & issue a tier-based license in Cloudflare D1.
    */
   static async registerClient(data: RegisterClientInput): Promise<RegisterClientResult> {
     const { username, password, clientName = '', email = '' } = data;
@@ -131,7 +131,7 @@ export class LicenseService {
     }
 
     // 1. Check if username is already taken
-    const existingUser = await SupabaseDatabase.findUserByUsername(username);
+    const existingUser = await D1Database.findUserByUsername(username);
     if (existingUser) {
       throw new Error(`Username "${username}" is already registered. Please choose another username.`);
     }
@@ -143,7 +143,7 @@ export class LicenseService {
     let cfResult: any = null;
 
     // 2. Load benefit template from LICENSE_MASTER (if present)
-    const masterBenefit = await SupabaseDatabase.findPlanBenefit(plan);
+    const masterBenefit = await D1Database.findPlanBenefit(plan);
     const masterJson = masterBenefit ? masterBenefit.LICENSE_JSON : null;
 
     // Apply subscription rules
@@ -206,8 +206,8 @@ export class LicenseService {
       licenseJson.dnsRecordId = cfResult.dnsRecordId;
     }
 
-    // 5. Save LICENSE to Supabase via Prisma
-    const licenseRow = await SupabaseDatabase.createLicense({
+    // 5. Save LICENSE to Cloudflare D1 via Prisma
+    const licenseRow = await D1Database.createLicense({
       licenseCode,
       planType: plan,
       licenseJson,
@@ -216,8 +216,8 @@ export class LicenseService {
     // 6. Hash password using PBKDF2 (matching POS backend)
     const passwordHash = hashPassword(password);
 
-    // 7. Save USER to Supabase via Prisma with MASTER_KEY
-    const userRow = await SupabaseDatabase.createUser({
+    // 7. Save USER to Cloudflare D1 via Prisma with MASTER_KEY
+    const userRow = await D1Database.createUser({
       username: username.trim(),
       passwordHash,
       masterKey,
@@ -254,7 +254,7 @@ export class LicenseService {
   }
 
   /**
-   * Verify an admin user against Supabase and return their license state & master key.
+   * Verify an admin user against Cloudflare D1 and return their license state & master key.
    * Used by POS-Backend for initial bootstrap when local SQLite is empty.
    */
   static async verifyAdminUser(username: string, plainPassword: string): Promise<{
@@ -270,15 +270,16 @@ export class LicenseService {
       licenseId: string;
       licenseCode: string;
       plan: string;
+      clientName?: string;
       maxUsers: number;
       cloudflare: any;
       expiredDate: string | null;
       status: string;
     };
   }> {
-    const user = await SupabaseDatabase.findUserByUsername(username);
+    const user = await D1Database.findUserByUsername(username);
     if (!user) {
-      throw new Error('User not found in Supabase license registry');
+      throw new Error('User not found in D1 license registry');
     }
 
     const isPasswordValid = verifyPassword(plainPassword, user.PASSWORD);
@@ -286,7 +287,7 @@ export class LicenseService {
       throw new Error('Invalid credentials');
     }
 
-    const license = await SupabaseDatabase.findLicenseById(user.LICENSE_ID);
+    const license = await D1Database.findLicenseById(user.LICENSE_ID);
     if (!license) {
       throw new Error('License associated with this user not found');
     }
@@ -299,7 +300,7 @@ export class LicenseService {
     }
 
     if (licenseJson.expiredDate && new Date() > new Date(licenseJson.expiredDate)) {
-      await SupabaseDatabase.updateLicense(license.LICENSE_CODE, { status: 'EXPIRED' });
+      await D1Database.updateLicense(license.LICENSE_CODE, { status: 'EXPIRED' });
       throw new Error('License has expired. Please contact support to renew your subscription.');
     }
 
@@ -334,7 +335,7 @@ export class LicenseService {
    * Enforces 1 main POS machine per store.
    */
   static async activateLicense(licenseCode: string, machineId: string) {
-    const record = await SupabaseDatabase.findLicenseByCode(licenseCode);
+    const record = await D1Database.findLicenseByCode(licenseCode);
     if (!record) {
       throw new Error('License Key not found or invalid');
     }
@@ -347,7 +348,7 @@ export class LicenseService {
     }
 
     if (json.expiredDate && new Date() > new Date(json.expiredDate)) {
-      await SupabaseDatabase.updateLicense(licenseCode, { status: 'EXPIRED' });
+      await D1Database.updateLicense(licenseCode, { status: 'EXPIRED' });
       throw new Error('License has expired. Please contact support to renew.');
     }
 
@@ -358,7 +359,7 @@ export class LicenseService {
       );
     }
 
-    await SupabaseDatabase.updateLicense(licenseCode, {
+    await D1Database.updateLicense(licenseCode, {
       activatedAt: new Date().toISOString(),
       activatedMachineId: machineId || 'unknown_machine',
     });
@@ -384,7 +385,7 @@ export class LicenseService {
    * Revoke or delete license
    */
   static async revokeOrDeleteLicense(licenseCode: string, hardDelete = false) {
-    const record = await SupabaseDatabase.findLicenseByCode(licenseCode);
+    const record = await D1Database.findLicenseByCode(licenseCode);
     if (!record) {
       throw new Error('License Key not found');
     }
@@ -397,10 +398,10 @@ export class LicenseService {
     }
 
     if (hardDelete) {
-      await SupabaseDatabase.deleteLicense(licenseCode);
+      await D1Database.deleteLicense(licenseCode);
       return { success: true, message: `License ${licenseCode} deleted permanently` };
     } else {
-      await SupabaseDatabase.updateLicense(licenseCode, { status: 'REVOKED' });
+      await D1Database.updateLicense(licenseCode, { status: 'REVOKED' });
       return { success: true, message: `License ${licenseCode} revoked` };
     }
   }
@@ -409,14 +410,14 @@ export class LicenseService {
    * Get all plan benefits defined in LICENSE_MASTER
    */
   static async getPlanBenefits() {
-    return await SupabaseDatabase.getAllPlanBenefits();
+    return await D1Database.getAllPlanBenefits();
   }
 
   /**
    * Get specific plan benefit from LICENSE_MASTER
    */
   static async getPlanBenefit(planCode: string) {
-    const benefit = await SupabaseDatabase.findPlanBenefit(planCode);
+    const benefit = await D1Database.findPlanBenefit(planCode);
     if (!benefit) {
       throw new Error(`Plan benefit for "${planCode}" not found`);
     }
@@ -502,7 +503,7 @@ export class LicenseService {
       throw new Error('Device ID is required for activation');
     }
 
-    const user = await SupabaseDatabase.findUserByUsername(username);
+    const user = await D1Database.findUserByUsername(username);
     if (!user) {
       throw new Error('NAMO Cloud Account not found. Please check your credentials.');
     }
@@ -512,7 +513,7 @@ export class LicenseService {
       throw new Error('Invalid NAMO Cloud Account credentials');
     }
 
-    const license = await SupabaseDatabase.findLicenseById(user.LICENSE_ID);
+    const license = await D1Database.findLicenseById(user.LICENSE_ID);
     if (!license) {
       throw new Error('No active subscription found for this NAMO account');
     }
@@ -525,14 +526,14 @@ export class LicenseService {
     }
 
     if (json.expiredDate && new Date() > new Date(json.expiredDate)) {
-      await SupabaseDatabase.updateLicense(license.LICENSE_CODE, { status: 'EXPIRED' });
+      await D1Database.updateLicense(license.LICENSE_CODE, { status: 'EXPIRED' });
       const err: any = new Error('Subscription has expired. Please renew your subscription.');
       err.code = 'SUBSCRIPTION_EXPIRED';
       throw err;
     }
 
     // Node-locking: Update device binding
-    await SupabaseDatabase.updateLicense(license.LICENSE_CODE, {
+    await D1Database.updateLicense(license.LICENSE_CODE, {
       activatedAt: new Date().toISOString(),
       activatedMachineId: deviceId,
     });
@@ -575,7 +576,7 @@ export class LicenseService {
       throw new Error('License code and device ID are required');
     }
 
-    const record = await SupabaseDatabase.findLicenseByCode(licenseCode);
+    const record = await D1Database.findLicenseByCode(licenseCode);
     if (!record) {
       const err: any = new Error('License key not found');
       err.code = 'LICENSE_NOT_FOUND';
@@ -601,7 +602,7 @@ export class LicenseService {
 
     // Check expiration
     if (json.expiredDate && new Date() > new Date(json.expiredDate)) {
-      await SupabaseDatabase.updateLicense(licenseCode, { status: 'EXPIRED' });
+      await D1Database.updateLicense(licenseCode, { status: 'EXPIRED' });
       const err: any = new Error('Subscription has expired');
       err.code = 'SUBSCRIPTION_EXPIRED';
       err.expiredDate = json.expiredDate;
@@ -609,7 +610,7 @@ export class LicenseService {
     }
 
     // Find account owner
-    let user = await SupabaseDatabase.findUserByLicenseId(record.LICENSE_ID);
+    let user = await D1Database.findUserByLicenseId(record.LICENSE_ID);
     if (!user) {
       user = {
         USER_ID: 'system-owner',
@@ -652,7 +653,7 @@ export class LicenseService {
       throw new Error('Valid license code and duration in days are required');
     }
 
-    const record = await SupabaseDatabase.findLicenseByCode(licenseCode);
+    const record = await D1Database.findLicenseByCode(licenseCode);
     if (!record) {
       throw new Error('License key not found');
     }
@@ -666,7 +667,7 @@ export class LicenseService {
     const newExpiry = new Date(baseDate.getTime() + durationDays * 86400 * 1000);
 
     const prevDate = json.expiredDate;
-    await SupabaseDatabase.updateLicense(licenseCode, {
+    await D1Database.updateLicense(licenseCode, {
       expiredDate: newExpiry.toISOString(),
       status: 'ACTIVE',
     });
@@ -694,17 +695,17 @@ export class LicenseService {
     password: string;
   }): Promise<{ success: boolean; message: string }> {
     const { licenseCode, deviceId, username, password } = data;
-    const user = await SupabaseDatabase.findUserByUsername(username);
+    const user = await D1Database.findUserByUsername(username);
     if (!user || !verifyPassword(password, user.PASSWORD)) {
       throw new Error('Invalid cloud account credentials');
     }
 
-    const record = await SupabaseDatabase.findLicenseByCode(licenseCode);
+    const record = await D1Database.findLicenseByCode(licenseCode);
     if (!record) {
       throw new Error('License key not found');
     }
 
-    await SupabaseDatabase.updateLicense(licenseCode, {
+    await D1Database.updateLicense(licenseCode, {
       activatedMachineId: '',
       activatedAt: '',
     });

@@ -550,5 +550,3 @@ export const D1Database = {
     }
   },
 };
-
-export { D1Database as SupabaseDatabase };
