@@ -6,13 +6,16 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "start": "node dist/index.js",
     "test:license": "tsx test-license.ts",
     "db:migrate:local": "wrangler d1 migrations apply namo-license-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply namo-license-db --remote",
     "db:migrations:local": "wrangler d1 migrations list namo-license-db --local",
-    "db:migrations:remote": "wrangler d1 migrations list namo-license-db --remote"
+    "db:migrations:remote": "wrangler d1 migrations list namo-license-db --remote",
+    "deploy:check": "wrangler deploy --dry-run",
+    "cf:types": "wrangler types src/worker-configuration.d.ts",
+    "build:worker": "node scripts/build-worker.mjs"
   },
   "dependencies": {
     "@prisma/adapter-d1": "^6.19.3",
@@ -28,6 +31,7 @@
     "prisma": "^6.4.1",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",
-    "wrangler": "^4.140.0"
+    "wrangler": "^4.140.0",
+    "esbuild": "0.28.2"
   }
 }

@@ -291,8 +291,8 @@ export class CloudflareService {
         `https://api.cloudflare.com/client/v4/accounts/${config.cfAccountId}/cfd_tunnel/${tunnelId}`,
         { method: 'DELETE', headers }
       );
-      const delData = await delRes.json();
-      return Boolean(delData?.success);
+      const delData: unknown = await delRes.json();
+      return typeof delData === 'object' && delData !== null && 'success' in delData && delData.success === true;
     } catch (err) {
       console.warn('Failed to delete tunnel:', err);
       return false;

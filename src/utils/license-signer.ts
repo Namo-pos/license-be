@@ -43,6 +43,10 @@ export class LicenseSigner {
       return;
     }
 
+    if (process.env.REQUIRE_LICENSE_KEYS === 'true') {
+      throw new Error('LICENSE_PRIVATE_KEY and LICENSE_PUBLIC_KEY must be configured as Worker secrets');
+    }
+
     // 2. Check local key storage file
     const keyFilePath = path.resolve(__dirname, '../../data/license_keypair.json');
     if (fs.existsSync(keyFilePath)) {
